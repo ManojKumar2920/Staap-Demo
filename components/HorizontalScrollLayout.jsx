@@ -1,5 +1,6 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react';
+import gsap from 'gsap';
 
 const HorizontalScrollLayout = () => {
   const [currentSection, setCurrentSection] = useState(0);
@@ -7,6 +8,8 @@ const HorizontalScrollLayout = () => {
   const [isAtEnd, setIsAtEnd] = useState(false);
   const containerRef = useRef(null);
   const scrollTimeoutRef = useRef(null);
+  const slideContainerRef = useRef(null);
+  const sectionsRef = useRef([]);
 
   const sections = [
     { id: 'home', title: 'Home', color: 'from-purple-600 to-blue-500' },
@@ -14,6 +17,48 @@ const HorizontalScrollLayout = () => {
     { id: 'about', title: 'About', color: 'from-orange-500 to-amber-400' },
     { id: 'connect', title: 'Connect', color: 'from-pink-500 to-rose-400' }
   ];
+
+  // Initialize GSAP animations
+//   useEffect(() => {
+//     // Set initial states for sections
+//     gsap.set(sectionsRef.current, {
+//       opacity: 0,
+//       scale: 0.8
+//     });
+
+//     // Animate in the first section
+//     gsap.to(sectionsRef.current[0], {
+//       opacity: 1,
+//       scale: 1,
+//       duration: 1,
+//       ease: "power3.out"
+//     });
+//   }, []);
+
+  const animateSection = (index, direction) => {
+    // Animate container movement
+    gsap.to(slideContainerRef.current, {
+      x: `-${index * 100}%`,
+      duration: 1,
+      ease: "power2.inOut"
+    });
+  
+    // Animate in the new section without fading out the previous one
+    gsap.fromTo(sectionsRef.current[index],
+      {
+        opacity: 1, // Keep it fully visible
+        scale: 1.1, // Slightly enlarged for entry effect
+      },
+      {
+        opacity: 1,
+        scale: 1,
+        duration: 1,
+        delay: 0.3,
+        ease: "power3.out"
+      }
+    );
+  };
+  
 
   useEffect(() => {
     let accumulatedDelta = 0;
@@ -37,33 +82,42 @@ const HorizontalScrollLayout = () => {
       if (accumulatedDelta >= deltaThreshold) {
         const direction = e.deltaY > 0 ? 1 : -1;
         
-        // Check if we're at the last section and trying to scroll forward
         if (currentSection === sections.length - 1 && direction > 0) {
+          // Bounce effect when trying to scroll past the last section
+          gsap.to(slideContainerRef.current, {
+            x: `${(-currentSection * 100) - 2}%`,
+            duration: 0.3,
+            ease: "power2.out",
+            yoyo: true,
+            repeat: 1
+          });
           setIsAtEnd(true);
           accumulatedDelta = 0;
           return;
         }
 
-        // Allow backward scrolling from any position
         if (direction < 0 && currentSection > 0) {
           setIsAtEnd(false);
           setIsScrolling(true);
-          setCurrentSection(prev => prev - 1);
+          const nextSection = currentSection - 1;
+          animateSection(nextSection, direction);
+          setCurrentSection(nextSection);
           accumulatedDelta = 0;
 
           setTimeout(() => {
             setIsScrolling(false);
-          }, 500);
+          }, 1500);
         }
-        // Allow forward scrolling only if not at the end
         else if (direction > 0 && currentSection < sections.length - 1) {
           setIsScrolling(true);
-          setCurrentSection(prev => prev + 1);
+          const nextSection = currentSection + 1;
+          animateSection(nextSection, direction);
+          setCurrentSection(nextSection);
           accumulatedDelta = 0;
 
           setTimeout(() => {
             setIsScrolling(false);
-          }, 500);
+          }, 1500);
         }
       }
     };
@@ -79,26 +133,30 @@ const HorizontalScrollLayout = () => {
     };
   }, [currentSection, isScrolling, sections.length]);
 
-  // Optional: Add a visual indicator when trying to scroll past the last section
-  const [showEndIndicator, setShowEndIndicator] = useState(false);
-  
-  useEffect(() => {
-    if (isAtEnd) {
-      setShowEndIndicator(true);
-      const timer = setTimeout(() => setShowEndIndicator(false), 500);
-      return () => clearTimeout(timer);
+  // Handle dot navigation with GSAP
+  const handleDotClick = (index) => {
+    if (!isScrolling) {
+      setIsScrolling(true);
+      const direction = index > currentSection ? 1 : -1;
+      animateSection(index, direction);
+      setCurrentSection(index);
+      
+      setTimeout(() => {
+        setIsScrolling(false);
+      }, 1500);
     }
-  }, [isAtEnd]);
+  };
 
   return (
     <div className="h-screen w-screen overflow-hidden" ref={containerRef}>
       <div 
-        className="flex h-full transition-transform duration-500 ease-in-out relative"
-        style={{ transform: `translateX(-${currentSection * 100}%)` }}
+        ref={slideContainerRef}
+        className="flex h-full"
       >
-        {sections.map(({ id, title, color }) => (
+        {sections.map(({ id, title, color }, index) => (
           <div 
             key={id}
+            ref={el => sectionsRef.current[index] = el}
             className={`flex-none w-screen h-screen bg-gradient-to-br ${color} 
               flex items-center justify-center`}
           >
@@ -120,13 +178,7 @@ const HorizontalScrollLayout = () => {
         {sections.map((_, index) => (
           <button
             key={index}
-            onClick={() => {
-              if (!isScrolling) {
-                setIsScrolling(true);
-                setCurrentSection(index);
-                setTimeout(() => setIsScrolling(false), 500);
-              }
-            }}
+            onClick={() => handleDotClick(index)}
             className={`w-3 h-3 rounded-full transition-all duration-300 
               ${currentSection === index 
                 ? 'bg-white scale-125' 
